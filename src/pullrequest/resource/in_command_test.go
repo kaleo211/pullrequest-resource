@@ -3,6 +3,7 @@ package resource_test
 import (
 	"errors"
 	"os"
+	"path"
 	"pullrequest/resource"
 	"pullrequest/resource/fake"
 
@@ -12,9 +13,15 @@ import (
 
 var _ = FDescribe("InCommand", func() {
 	var fakeGithub *fake.FGithub
+	var fakeDestDir string
 
 	BeforeEach(func() {
 		fakeGithub = &fake.FGithub{}
+		fakeDestDir = path.Join(os.TempDir(), "fake-dir")
+	})
+
+	AfterEach(func() {
+		os.Remove(fakeDestDir)
 	})
 
 	Context("when version is valid", func() {
@@ -35,7 +42,7 @@ var _ = FDescribe("InCommand", func() {
 			}
 
 			// Execution
-			inResponse, err := inCommand.Run(os.TempDir(), inRequest)
+			inResponse, err := inCommand.Run(fakeDestDir, inRequest)
 
 			// Verification
 			Expect(err).ToNot(HaveOccurred())
@@ -44,7 +51,7 @@ var _ = FDescribe("InCommand", func() {
 		})
 	})
 
-	XContext("when destDir is not valid", func() {
+	Context("when destDir is not valid", func() {
 		It("should return error", func() {
 			fakeGithub := &fake.FGithub{}
 			inCommand := resource.NewInCommand(fakeGithub)
@@ -52,8 +59,7 @@ var _ = FDescribe("InCommand", func() {
 			inRequest := resource.InRequest{}
 
 			_, err := inCommand.Run("/fake/not/exist/dir", inRequest)
-
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("making dest dir: mkdir /fake/not/exist/dir: no such file or directory"))
 		})
 	})
 
@@ -69,7 +75,7 @@ var _ = FDescribe("InCommand", func() {
 				},
 			}
 
-			_, err := inCommand.Run(os.TempDir(), inRequest)
+			_, err := inCommand.Run(fakeDestDir, inRequest)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(MatchError("downloading pr: fake-download-pr-error"))
 		})
@@ -88,7 +94,7 @@ var _ = FDescribe("InCommand", func() {
 				},
 			}
 
-			_, err := inCommand.Run(os.TempDir(), inRequest)
+			_, err := inCommand.Run(fakeDestDir, inRequest)
 			Expect(err).To(MatchError("pr ref is not valid"))
 		})
 	})

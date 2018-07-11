@@ -3,6 +3,7 @@ package resource
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 )
 
@@ -18,6 +19,10 @@ func NewInCommand(g Github) *InCommand {
 
 // Run is
 func (ic *InCommand) Run(destDir string, req InRequest) (InResponse, error) {
+	err := os.Mkdir(destDir, os.ModePerm)
+	if err != nil {
+		return InResponse{}, fmt.Errorf("making dest dir: %+v", err)
+	}
 
 	pr, err := strconv.Atoi(req.Version.PR)
 	if err != nil {
