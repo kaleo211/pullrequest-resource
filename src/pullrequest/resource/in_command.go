@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -18,33 +19,26 @@ func NewInCommand(g Github) *InCommand {
 
 // Run is
 func (ic *InCommand) Run(destDir string, req InRequest) (InResponse, error) {
-	resp := InResponse{}
-
-	err := os.MkdirAll(destDir, 0755)
+	err := os.Mkdir(destDir, os.ModePerm)
 	if err != nil {
-		return resp, err
+		return InResponse{}, fmt.Errorf("making dest dir: %+v", err)
 	}
 
-	pulls, err := ic.github.ListPRs()
+	pr, err := strconv.Atoi(req.Version.PR)
 	if err != nil {
-		return resp, err
+		return InResponse{}, fmt.Errorf("converting pr number: %+v", err)
 	}
 
-	for _, pull := range pulls {
-		if pull.Ref == req.Version.Ref {
-			err = ic.github.DownloadPR(destDir, pull.Number)
-			if err != nil {
-				return resp, err
-			}
-
-			return InResponse{
-				Version: Version{
-					Ref: req.Version.Ref,
-					PR:  strconv.Itoa(pull.Number),
-				},
-			}, nil
-		}
+	pull, err := ic.github.DownloadPR(destDir, pr)
+	if err != nil {
+		return InResponse{}, fmt.Errorf("downloading pr: %+v", err)
 	}
 
-	return resp, fmt.Errorf("version %s not found", req.Version.Ref)
+	if pull.Ref != req.Version.Ref {
+		return InResponse{}, errors.New("pr ref is not valid")
+	}
+
+	return InResponse{
+		Version: req.Version,
+	}, nil
 }

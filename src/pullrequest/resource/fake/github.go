@@ -7,7 +7,8 @@ type FGithub struct {
 	ListPRResult []*resource.Pull
 	ListPRError  error
 
-	DownloadPRError error
+	DownloadPRError  error
+	DownloadPRResult *resource.Pull
 
 	UpdatePRResult string
 	UpdatePRError  error
@@ -19,8 +20,8 @@ func (fg *FGithub) ListPRs() ([]*resource.Pull, error) {
 }
 
 // DownloadPR is
-func (fg *FGithub) DownloadPR(destDir string, prNumber int) error {
-	return fg.DownloadPRError
+func (fg *FGithub) DownloadPR(destDir string, prNumber int) (*resource.Pull, error) {
+	return fg.DownloadPRResult, fg.DownloadPRError
 }
 
 // UpdatePR is

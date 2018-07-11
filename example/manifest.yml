@@ -5,20 +5,20 @@ resource_types:
     repository: kaleo211/pr
 
 resources:
-- name: ithink-pr
+- name: pullrequest-resource-pr
   type: pull-request
   source:
     owner: kaleo211
-    repo: ithink
-    access_token: {{ithink-access_token}}
+    repo: pullrequest-resource
+    access_token: {{access_token}}
     insecure: true
 
 jobs:
 - name: set-pr-pending
   plan:
-  - get: ithink
+  - get: pullrequest-resource
     trigger: true
-    resource: ithink-pr
-  - put: ithink-pr
+    resource: pullrequest-resource-pr
+  - put: pullrequest-resource-pr
     params:
       status: pending
