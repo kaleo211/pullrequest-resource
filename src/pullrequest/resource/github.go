@@ -43,7 +43,7 @@ type Pull struct {
 // Github is
 type Github interface {
 	ListPRs() ([]*Pull, error)
-	DownloadPR(string, int) error
+	DownloadPR(string, int) (*Pull, error)
 	UpdatePR(string, string, string) (string, error)
 }
 
@@ -125,19 +125,19 @@ type pullFetcher struct {
 }
 
 // DownloadPR is
-func (gc *GithubClient) DownloadPR(destDir string, prNumber int) error {
+func (gc *GithubClient) DownloadPR(destDir string, prNumber int) (*Pull, error) {
 	repo, resp, err := gc.client.Repositories.Get(context.TODO(), gc.owner, gc.repo)
 	if err != nil {
-		return fmt.Errorf("getting repos: %+v", err)
+		return &Pull{}, fmt.Errorf("getting repos: %+v", err)
 	}
 
 	if err = resp.Body.Close(); err != nil {
-		return fmt.Errorf("closing resp body: %+v", err)
+		return &Pull{}, fmt.Errorf("closing resp body: %+v", err)
 	}
 
 	file, err := os.OpenFile(downloadPRScriptPath, os.O_RDWR|os.O_CREATE, 0777)
 	if err != nil {
-		return fmt.Errorf("opening download script: %+v", err)
+		return &Pull{}, fmt.Errorf("opening download script: %+v", err)
 	}
 
 	tmpl := template.Must(template.New("").Parse(downloadPRScriptBytes))
@@ -148,22 +148,22 @@ func (gc *GithubClient) DownloadPR(destDir string, prNumber int) error {
 	}
 
 	if err = tmpl.Execute(file, pf); err != nil {
-		return fmt.Errorf("executing template: %+v", err)
+		return &Pull{}, fmt.Errorf("executing template: %+v", err)
 	}
 
 	log.Infof("repo path: %s", destDir)
 
 	cmd := exec.Command("/bin/sh", downloadPRScriptPath)
 	if output, err := cmd.Output(); err != nil {
-		return fmt.Errorf("executing download script: %s, %+v", string(output), err)
+		return &Pull{}, fmt.Errorf("executing download script: %s, %+v", string(output), err)
 	}
 
 	pull, err := gc.GetPR(prNumber)
 	if err != nil {
-		return fmt.Errorf("getting pr %d: %+v", prNumber, err)
+		return &Pull{}, fmt.Errorf("getting pr %d: %+v", prNumber, err)
 	}
 
-	return writePullToFile(destDir, pull)
+	return pull, writePullToFile(destDir, pull)
 }
 
 // GetPR is
