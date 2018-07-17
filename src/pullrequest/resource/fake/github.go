@@ -1,6 +1,8 @@
 package fake
 
-import "pullrequest/resource"
+import (
+	"pullrequest/resource"
+)
 
 // FGithub is
 type FGithub struct {
@@ -11,6 +13,14 @@ type FGithub struct {
 
 	UpdatePRResult string
 	UpdatePRError  error
+
+	GetPRError  error
+	GetPRResult *resource.Pull
+}
+
+// Get a single PR
+func (fg *FGithub) GetPR(prNumber int) (*resource.Pull, error) {
+	return fg.GetPRResult, fg.GetPRError
 }
 
 // ListPRs is

@@ -5,87 +5,128 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-
-	r "pullrequest/resource"
+	"pullrequest/resource"
 	"pullrequest/resource/fake"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("CheckCommand", func() {
-	var fakeSrcDir string
-	var err error
+var _ = Describe("OutCommand", func() {
+	var fakeGithub resource.Github
+	var tempPath string
+	var outCommand *resource.OutCommand
 
-	Context("when pr_number is there", func() {
-		BeforeEach(func() {
-			fakeSrcDir = path.Join(os.TempDir(), "fakedir")
-			err = os.Mkdir(fakeSrcDir, 0777)
+	BeforeEach(func() {
+		fakeGithub = &fake.FGithub{}
+		outCommand = resource.NewOutCommand(fakeGithub)
+		tempPath = os.TempDir()
+		os.Mkdir(path.Join(tempPath, "path"), os.ModePerm)
+
+		fakeGithub.(*fake.FGithub).GetPRResult = &resource.Pull{
+			Ref: "ref",
+		}
+		err := ioutil.WriteFile(path.Join(tempPath, "path", "pr_id"), []byte("ref"), 0644)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = ioutil.WriteFile(path.Join(tempPath, "path", "pr_number"), []byte("12"), 0644)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.Remove(tempPath)
+	})
+
+	Context("when the resource is valid", func() {
+		It("should return no error", func() {
+			// Preparation
+			outRequest := resource.OutRequest{
+				OutParams: resource.OutParams{
+					Status: "passing",
+					Path:   "path",
+				},
+			}
+
+			fakeRef := "fake-ref"
+			fakeGithub.(*fake.FGithub).UpdatePRError = nil
+			fakeGithub.(*fake.FGithub).UpdatePRResult = fakeRef
+
+			// Execution
+			outResponse, err := outCommand.Run(tempPath, outRequest)
+
+			// Verification
 			Expect(err).ToNot(HaveOccurred())
-
-			err = ioutil.WriteFile(path.Join(fakeSrcDir, "pr_number"), []byte("1"), 0777)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		AfterEach(func() {
-			err = os.RemoveAll(fakeSrcDir)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Context("when update succeed", func() {
-			It("should return correct version", func() {
-				fakeGithub := &fake.FGithub{
-					UpdatePRResult: "fake-ref1",
-					UpdatePRError:  nil,
-				}
-				outCommand := r.NewOutCommand(fakeGithub)
-
-				outResponse, err := outCommand.Run(fakeSrcDir, r.OutRequest{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(outResponse.Version).To(Equal(r.Version{Ref: "fake-ref1", PR: "1"}))
-			})
-		})
-
-		Context("when update failed", func() {
-			It("should return error", func() {
-				fakeGithub := &fake.FGithub{
-					UpdatePRResult: "",
-					UpdatePRError:  errors.New("fake-error"),
-				}
-				outCommand := r.NewOutCommand(fakeGithub)
-
-				_, err := outCommand.Run(fakeSrcDir, r.OutRequest{})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("updating pr: fake-error"))
-			})
+			Expect(outResponse.Version.Ref).To(Equal(fakeRef))
 		})
 	})
 
-	Context("when pr_number is not there", func() {
-		BeforeEach(func() {
-			fakeSrcDir = path.Join(os.TempDir(), "fakedir")
-			err = os.Mkdir(fakeSrcDir, 0777)
-			Expect(err).ToNot(HaveOccurred())
+	Context("when the resource is invalid", func() {
+		It("Should return error", func() {
+			// Preparation
+			outCommand := resource.NewOutCommand(fakeGithub)
+			outRequest := resource.OutRequest{
+				OutParams: resource.OutParams{
+					Path: "path",
+				},
+			}
 
+			fakeGithub.(*fake.FGithub).UpdatePRError = errors.New("An error occurred")
+
+			// Execution
+			_, err := outCommand.Run(tempPath, outRequest)
+
+			// Verification
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("updating pr: An error occurred"))
 		})
+	})
 
-		AfterEach(func() {
-			err = os.RemoveAll(fakeSrcDir)
-			Expect(err).ToNot(HaveOccurred())
+	Context("when the folder is invalid", func() {
+		It("Should return error", func() {
+			// Preparation
+			outCommand := resource.NewOutCommand(fakeGithub)
+			outRequest := resource.OutRequest{
+				OutParams: resource.OutParams{
+					Status: "passing",
+					Path:   "path",
+				}}
+			fakePath := "/fakepath"
+
+			fakeGithub.(*fake.FGithub).UpdatePRError = errors.New("stat /fakepath/path: no such file or directory")
+
+			// Execution
+			_, err := outCommand.Run(fakePath, outRequest)
+
+			// Verification
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("stat /fakepath/path: no such file or directory"))
 		})
+	})
 
-		Context("when trying to update without pr_number", func() {
-			It("should return error", func() {
-				fakeGithub := &fake.FGithub{
-					UpdatePRResult: "fake-ref1",
-					UpdatePRError:  nil,
-				}
-				outCommand := r.NewOutCommand(fakeGithub)
+	Context("When the pull request is outdated", func() {
+		It("should return no error", func() {
+			// Preparation
+			outRequest := resource.OutRequest{
+				OutParams: resource.OutParams{
+					Status: "passing",
+					Path:   "path",
+				},
+			}
 
-				_, err := outCommand.Run(fakeSrcDir, r.OutRequest{})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(MatchRegexp("no such file or directory"))
-			})
+			fakeGithub.(*fake.FGithub).GetPRResult = &resource.Pull{
+				Ref: "latest-fake-ref",
+			}
+
+			fakeRef := "fake-ref"
+			fakeGithub.(*fake.FGithub).UpdatePRError = nil
+			fakeGithub.(*fake.FGithub).UpdatePRResult = fakeRef
+
+			// Execution
+			_, err := outCommand.Run(tempPath, outRequest)
+
+			// Verification
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Equal("PR is out of date"))
 		})
 	})
 })
