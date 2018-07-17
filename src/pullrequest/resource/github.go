@@ -42,6 +42,7 @@ type Pull struct {
 
 // Github is
 type Github interface {
+	GetPR(int) (*Pull, error)
 	ListPRs() ([]*Pull, error)
 	DownloadPR(string, int) error
 	UpdatePR(string, string, string) (string, error)
